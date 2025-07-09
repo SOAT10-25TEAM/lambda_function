@@ -1,0 +1,46 @@
+name: Deploy Lambda
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v3
+
+      - name: Instalando dependências
+        run: npm ci
+
+      - name: Compilando TypeScript
+        run: npm run build
+
+      - name: Preparar pasta dist para o deploy
+        run: |
+          mkdir -p lambda_dist
+          cp -r dist/* lambda_dist/
+          cp package*.json lambda_dist/
+          cd lambda_dist
+          npm install --omit=dev
+
+      - name: Compactar função Lambda
+        run: |
+          cd lambda_dist
+          zip -r function.zip .
+
+      - name: Configurar credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4.1.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Fazer deploy da função Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ secrets.LAMBDA_FUNCTION_NAME }} \
+            --zip-file fileb://lambda_dist/function.zip
